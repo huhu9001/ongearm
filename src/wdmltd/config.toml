@@ -1,0 +1,28 @@
+ip = "auto"
+port = "27183"
+key-exit = 119 # KEY_PAUSE
+key-play = 44 # KEY_Z
+song-path = "."
+# ptsvr-path = /data/local/tmp/server.jar
+
+[screen.unit]
+# x1 =
+# x2 =
+# y =
+
+[screen.solo]
+# x1 =
+# x2 =
+# y =
+
+[screen.2mix]
+# x1 = (default = unit.x1)
+# x2 = (default = unit.x2)
+
+[screen]
+slop = 40
+
+# [[ctrl]]
+# key =
+# x =
+# y =
