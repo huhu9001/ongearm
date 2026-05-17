@@ -13,10 +13,11 @@ include_directories(
     external/include/tomlplusplus)
 
 add_executable(wdmltd
+    src/wdmltd/config.cpp
+    src/wdmltd/ctrl.cpp
     src/wdmltd/phantom.cpp
+    src/wdmltd/ptsvr.cpp
     src/wdmltd/main.cpp)
-
-message(${CMAKE_COMMAND} -E copy ${CMAKE_SOURCE_DIR}/src/wdmltd/config.toml ${CMAKE_BINARY_DIR})
 
 add_custom_command(
     OUTPUT ${CMAKE_BINARY_DIR}/config.toml

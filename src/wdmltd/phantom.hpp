@@ -1,8 +1,11 @@
 #pragma once
 
 #include<events.hpp>
+#include<boost/asio.hpp>
 
 #include<cstdint>
+#include<atomic>
+#include<filesystem>
 #include<string_view>
 #include<vector>
 
@@ -26,8 +29,16 @@ struct MltdSize {
     int32_t slop;
 };
 
+struct PlayMacroContext {
+    std::atomic_bool abrt, done;
+    boost::asio::ip::tcp::iostream*ptsvr;
+    std::vector<PhantomInput>const*song;
+};
+
 int change_song(
     std::vector<PhantomInput>&song,
-    std::string_view name,
+    std::filesystem::path const&name,
     MltdSize const&msize,
     std::vector<std::string>*warnings = nullptr) noexcept;
+
+int play_phantom_macro(PlayMacroContext*const c) noexcept;
