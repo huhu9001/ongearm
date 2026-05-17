@@ -7,17 +7,15 @@ extern "C" {
 #include<linux/input.h>
 }
 
-#include<csignal>
 #include<cstdlib>
 #include<cstdio>
-#include<ctime>
+#include<algorithm>
 #include<atomic>
 #include<charconv>
 #include<chrono>
 #include<filesystem>
 #include<format>
 #include<fstream>
-#include<map>
 #include<optional>
 #include<print>
 #include<span>
@@ -230,7 +228,12 @@ int main(int const argc, char**const argv) {
         }
     }
 
-    std::map<int, ongearm::Pos> ctrls;
+    struct Ctrl {
+        int key;
+        int32_t x, y;
+        static int get_key(Ctrl const&c) { return c.key; }
+    };
+    std::vector<Ctrl> ctrls;
     if (auto const ctrls_config = config["ctrl"]; ctrls_config.is_array_of_tables()) {
         for (auto&ctrl_node : *ctrls_config.as_array()) {
             auto&ctrl = *ctrl_node.as_table();
@@ -238,10 +241,11 @@ int main(int const argc, char**const argv) {
             auto const x = ctrl["x"].value<int32_t>();
             auto const y = ctrl["y"].value<int32_t>();
             if (key && x && y) {
-                ctrls[*key] = ongearm::Pos{*x, *y};
+                ctrls.emplace_back(*key, *x, *y);
             }
         }
     }
+    std::ranges::sort(ctrls, {}, Ctrl::get_key);
 
     boost::asio::ip::tcp::iostream ptsvr(waydroid_ip, waydroid_port);
     struct PtsvrGuard {
@@ -357,11 +361,12 @@ int main(int const argc, char**const argv) {
                 std::println("starting playing the song");
                 std::println("press exit key to stop");
             }
-            else if (auto i = ctrls.find(ev.code); i != ctrls.end()) {
+            else if (auto const i = std::ranges::lower_bound(
+                ctrls, ev.code, {}, Ctrl::get_key); i != ctrls.end() && i->key == ev.code) {
                 ptsvr.put(PhantomInput::CMD_TOUCH_DOWN);
                 ptsvr.put(0);
-                ptsvr.write(reinterpret_cast<char const*>(&i->second), sizeof(ongearm::Pos));
-                ptsvr.flush();
+                ptsvr.write(reinterpret_cast<char const*>(&i->x), 4);
+                ptsvr.write(reinterpret_cast<char const*>(&i->y), 4);
                 ptsvr.put(PhantomInput::CMD_TOUCH_UP);
                 ptsvr.put(0);
                 ptsvr.flush();
