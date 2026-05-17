@@ -76,7 +76,7 @@ static int play_phantom_macro(PlayMacroContext*const c) noexcept {
 static void load_song(
     std::vector<PhantomInput>&song,
     std::string_view const song_name,
-    MltdSize const&msize) {
+    MltdSize const&msize) noexcept {
     std::vector<std::string> warnings;
     change_song(song, song_name, msize, &warnings);
     for (auto&w : warnings) {
@@ -231,7 +231,7 @@ int main(int const argc, char**const argv) {
     struct Ctrl {
         int key;
         int32_t x, y;
-        static int get_key(Ctrl const&c) { return c.key; }
+        static int get_key(Ctrl const&c) noexcept { return c.key; }
     };
     std::vector<Ctrl> ctrls;
     if (auto const ctrls_config = config["ctrl"]; ctrls_config.is_array_of_tables()) {
