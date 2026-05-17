@@ -13,7 +13,10 @@ include_directories(
     external/include/tomlplusplus)
 
 add_executable(wdmltd
+    src/wdmltd/config.cpp
+    src/wdmltd/ctrl.cpp
     src/wdmltd/phantom.cpp
+    src/wdmltd/ptsvr.cpp
     src/wdmltd/main.cpp)
 
 add_custom_command(

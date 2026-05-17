@@ -4,18 +4,18 @@
 
 #include<cstring>
 #include<algorithm>
+#include<chrono>
 #include<fstream>
 
 enum class MltdCourse {
     MM, M4, M2, S2,
 };
 
-static MltdCourse get_course(std::string_view name) noexcept {
-    if (name.ends_with(".csv"))
-        name = name.substr(0, name.size() - 4);
-    if (name.ends_with("_4m")) return MltdCourse::M4;
-    if (name.ends_with("_2m")) return MltdCourse::M2;
-    if (name.ends_with("_2s") || name.ends_with("_2p"))
+static MltdCourse get_course(std::filesystem::path const&path) noexcept {
+    auto const stem = path.stem().string();
+    if (stem.ends_with("_4m")) return MltdCourse::M4;
+    if (stem.ends_with("_2m")) return MltdCourse::M2;
+    if (stem.ends_with("_2s") || stem.ends_with("_2p"))
         return MltdCourse::S2;
     return MltdCourse::MM;
 }
@@ -51,27 +51,27 @@ static void make_phanton_macro(
             d[0] = PhantomInput::CMD_TOUCH_CANCEL;
         }
     }
-    std::ranges::sort(song, +[](PhantomInput const&pe1, PhantomInput const&pe2) {
-        return pe1.time < pe2.time;
+    std::ranges::sort(song, {}, +[](PhantomInput const&pe) {
+        return pe.time;
     });
 }
 
 int change_song(
     std::vector<PhantomInput>&song,
-    std::string_view const name,
+    std::filesystem::path const&path,
     MltdSize const&msize,
     std::vector<std::string>*const warnings) noexcept {
     song.clear();
-    std::ifstream csv(std::string{name});
+    std::ifstream csv(path);
     if (!csv.good()) {
         if (warnings)
-            warnings->push_back(std::format("cannot read {}", name));
+            warnings->push_back(std::format("cannot read {}", path.string()));
         return -1;
     }
     auto const notes = ongearm::parse_note(csv, warnings);
 
     ongearm::ScrnMapper mapper;
-    switch (get_course(name)) {
+    switch (get_course(path)) {
     default:
     case MltdCourse::MM:
         mapper.left = msize.x_left_unit;
@@ -103,5 +103,44 @@ int change_song(
     auto const motions = ongearm::note_to_mo(notes, mapper, warnings);
 
     make_phanton_macro(song, motions);
+    return 0;
+}
+
+int play_phantom_macro(PlayMacroContext*const c) noexcept {
+    struct Func {
+        static int64_t now() noexcept {
+            using namespace std::chrono;
+            static_assert(high_resolution_clock::period::den >= 1000'000);
+            return floor<milliseconds>(high_resolution_clock::now().time_since_epoch()).count();
+        }
+    };
+    auto&abrt = c->abrt;
+    std::span song{*c->song};
+    auto&ptsvr = *c->ptsvr;
+    struct DoneGuard {
+        std::atomic_bool&done;
+        ~DoneGuard() {
+            done.store(true, std::memory_order::relaxed);
+        }
+    } const _g0{c->done};
+    
+    if (song.empty()) return 0;
+    auto const&[t1, s1, d1] = song.front();
+    auto const tp_start = Func::now() - t1;
+    ptsvr.write(d1, s1);
+    ptsvr.flush();
+    if (!ptsvr.good()) return -1;
+    for (auto const&[t, s, d] : song.subspan(1)) {
+        auto const dt = t - (Func::now() - tp_start);
+        std::this_thread::sleep_for(std::chrono::milliseconds(dt));
+        ptsvr.write(d, s);
+        ptsvr.flush();
+        if (!ptsvr.good()) return -1;
+        if (abrt.load(std::memory_order::relaxed)) {
+            ptsvr.put(PhantomInput::CMD_TOUCH_CANCEL);
+            ptsvr.flush();
+            return 0;
+        }
+    }
     return 0;
 }
