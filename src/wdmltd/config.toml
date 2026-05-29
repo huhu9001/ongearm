@@ -1,9 +1,12 @@
-ip = "auto"
-port = "27183"
+port = 43212
 key-exit = 119 # KEY_PAUSE
 key-play = 44 # KEY_Z
 song-path = "."
 # ptsvr-path = /data/local/tmp/server.jar
+
+[phantom]
+ip = "auto"
+port = "27183"
 
 [screen.unit]
 # x1 =

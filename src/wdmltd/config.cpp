@@ -10,11 +10,12 @@ extern "C" {
 #include<filesystem>
 #include<print>
 #include<string_view>
+#include<system_error>
 
 static bool msize_from_arg(
     MltdSize&msize,
     std::string_view arg) noexcept {
-    int32_t*v_must[] = {
+    int32_t*const v_must[] = {
         &msize.x_left_unit,
         &msize.x_right_unit,
         &msize.y_unit,
@@ -22,12 +23,7 @@ static bool msize_from_arg(
         &msize.x_right_solo,
         &msize.y_solo,
     };
-    int32_t*v_opt[] = {
-        &msize.x_left_2mix,
-        &msize.x_right_2mix,
-        &msize.slop,
-    };
-    for (auto&v : v_must) {
+    for (auto const v : v_must) {
         auto const[ptr, ec] = std::from_chars(arg.begin(), arg.end(), *v);
         if (ec != std::errc{}) return false;
         if (ptr == arg.end()) {
@@ -40,7 +36,12 @@ static bool msize_from_arg(
     msize.x_left_2mix = msize.x_left_unit;
     msize.x_right_2mix = msize.x_right_unit;
     msize.slop = 40;
-    for (auto&v : v_opt) {
+    int32_t*const v_opt[] = {
+        &msize.x_left_2mix,
+        &msize.x_right_2mix,
+        &msize.slop,
+    };
+    for (auto const v : v_opt) {
         auto const[ptr, ec] = std::from_chars(arg.begin(), arg.end(), *v);
         if (ec != std::errc{}) {
             if (arg.empty()) break;
@@ -85,9 +86,10 @@ static bool msize_from_config(
 }
 
 Config::Config(int argc, char**argv) noexcept:good(false), msize_ok(false) {
+    std::error_code ec;
     std::string_view config_name;
     
-    for (int i = 1; i < argc; ++i) {
+    for (int i = 0; i < argc; ++i) {
         std::string_view arg{argv[i]};
         if (arg == "--config") {
             i += 1;
@@ -95,19 +97,23 @@ Config::Config(int argc, char**argv) noexcept:good(false), msize_ok(false) {
                 std::print(stderr, "missing --config argument");
                 return;
             }
-            if (std::filesystem::exists(argv[i])) config_name = argv[i];
+            if (std::filesystem::exists(argv[i], ec))
+                config_name = argv[i];
             else {
-                std::print(stderr, "config file {} does not exist", argv[i]);
+                if (ec)
+                    std::print(stderr, "fs: {}", ec.message());
+                else
+                    std::print(stderr, "config file {} does not exist", argv[i]);
                 return;
             }
         }
-        else if (arg == "--ip") {
+        else if (arg == "--phantom-ip") {
             i += 1;
             if (i >= argc) {
-                std::print(stderr, "missing --ip argument");
+                std::print(stderr, "missing --phantom-ip argument");
                 return;
             }
-            ip = argv[i];
+            phantom_ip = argv[i];
         }
         else if (arg == "--kbd") {
             i += 1;
@@ -136,15 +142,37 @@ Config::Config(int argc, char**argv) noexcept:good(false), msize_ok(false) {
         }
     }
 
-    auto const config =
-        !config_name.empty() ? toml::parse_file(config_name) :
-        std::filesystem::exists("config.toml") ? toml::parse_file("config.toml") :
-        toml::parse_result{};
+    if (auto const err = load(config_name); err != 0)
+        return;
 
-    if (ip.empty())
-        if (auto ip_or = config["ip"].value<std::string_view>())
-            ip = *ip_or;
-    port = config["port"].value_or<std::string_view>("27183");
+    good = true;
+}
+
+int Config::load(std::string_view const name) noexcept {
+    std::error_code ec;
+    auto const config =
+        !name.empty() ? toml::parse_file(name) :
+        std::filesystem::exists("config.toml", ec) ? toml::parse_file("config.toml") :
+        toml::parse("");
+    if (ec) {
+        std::println(stderr, "fs: {}", ec.message());
+        return ec.value();
+    }
+    if (config.failed()) {
+        std::println(stderr, "bad config file: {}", config.error().description());
+        return -1;
+    }
+
+    daemon_port = config["port"].value_or(43212);
+    if (auto const phantom = config["phantom"]; phantom.is_table()) {
+        if (phantom_ip.empty())
+            if (auto const ip_or = phantom["ip"].value<std::string_view>())
+                phantom_ip = *ip_or;
+        phantom_port = phantom["port"].value_or<std::string_view>("27183");
+    }
+    else {
+        phantom_port = "27183";
+    }
     key_exit = config["key-exit"].value_or<uint16_t>(KEY_PAUSE);
     key_play = config["key-play"].value_or<uint16_t>(KEY_Z);
     song_dir = config["song-path"].value_or<std::string_view>(".");
@@ -169,5 +197,5 @@ Config::Config(int argc, char**argv) noexcept:good(false), msize_ok(false) {
         }
     }
 
-    good = true;
+    return 0;
 }

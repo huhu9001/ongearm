@@ -5,10 +5,12 @@
 
 #include<cstdint>
 #include<string>
+#include<string_view>
 
 struct Config {
-    std::string ip;
-    std::string port;
+    int daemon_port;
+    std::string phantom_ip;
+    std::string phantom_port;
     std::string kbd;
     std::string song;
     std::string song_dir;
@@ -22,4 +24,5 @@ struct Config {
     bool msize_ok;
 
     Config(int, char**) noexcept;
+    int load(std::string_view name) noexcept;
 };

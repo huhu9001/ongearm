@@ -5,9 +5,7 @@
 #include<cstddef>
 #include<cstdint>
 #include<algorithm>
-#include<optional>
 #include<span>
-#include<type_traits>
 #include<vector>
 
 struct Ctrls {
@@ -16,7 +14,7 @@ struct Ctrls {
         int32_t x, y;
     };
     void add(Ctrl) noexcept;
-    void assign(std::vector<Ctrl>&&) noexcept;
+    void assign(std::vector<Ctrl>) noexcept;
     std::span<uint8_t const> input(uint16_t key, int32_t status) noexcept;
 private:
     std::vector<Ctrl> ctrls;

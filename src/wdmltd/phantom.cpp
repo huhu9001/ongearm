@@ -68,7 +68,8 @@ int change_song(
             warnings->push_back(std::format("cannot read {}", path.string()));
         return -1;
     }
-    auto const notes = ongearm::parse_note(csv, warnings);
+    std::vector<ongearm::NoteEvent> notes;
+    ongearm::parse_note(notes, csv, warnings);
 
     ongearm::ScrnMapper mapper;
     switch (get_course(path)) {
@@ -100,7 +101,8 @@ int change_song(
         break;
     }
     mapper.touch_slop = msize.slop;
-    auto const motions = ongearm::note_to_mo(notes, mapper, warnings);
+    std::vector<ongearm::MotionEvent> motions;
+    ongearm::note_to_mo(motions, notes, mapper, warnings);
 
     make_phanton_macro(song, motions);
     return 0;

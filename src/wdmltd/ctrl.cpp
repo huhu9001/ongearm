@@ -9,7 +9,7 @@ void Ctrls::add(Ctrl ctrl) noexcept {
     ctrls.insert(i, ctrl);
 }
 
-void Ctrls::assign(std::vector<Ctrl>&&v) noexcept {
+void Ctrls::assign(std::vector<Ctrl> v) noexcept {
     ctrls.clear();
     ctrls.swap(v);
     std::ranges::sort(ctrls, {}, get_sort_key);
@@ -28,7 +28,7 @@ std::span<uint8_t const> Ctrls::input(uint16_t key, int32_t status) noexcept {
         i[10] = PhantomInput::CMD_TOUCH_UP;
         i[11] = 0;
         
-        return {i, 12};output.emplace_back();
+        return {i, 12};
     }
     else return {};
 }

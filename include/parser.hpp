@@ -63,10 +63,10 @@ namespace ongearm {
         }
     };
 
-    std::vector<NoteEvent> parse_note(
+    inline void parse_note(
+        std::vector<NoteEvent>&out,
         std::istream&csv,
         std::vector<std::string>*const warnings = nullptr) noexcept {
-        std::vector<NoteEvent> notes;
 
         struct LineBreaker {
             LineBreaker(std::istream&i):i(i), str{}, eof(false) {}
@@ -244,21 +244,22 @@ namespace ongearm {
                     c += 1;
                     continue;
                 }
-                notes.push_back(note);
+                out.push_back(note);
                 c = cend_n;
             }
             
             n_line += 1;
         }
-        return notes;
     }
 
-    inline std::vector<MotionEvent> note_to_mo(
+    inline void note_to_mo(
+        std::vector<MotionEvent>&out,
         std::span<NoteEvent const>const notes,
         ScrnMapper const&mapper,
         std::vector<std::string>*const warnings = nullptr) noexcept {
-        std::vector<MotionEvent> motions;
         auto const x_left = (static_cast<float>(mapper.num) + 1.0f) / 2.0f;
+        constexpr auto DOWNMOVE = static_cast<MotionEvent::Kind>(8);
+        out.clear();
         for (NoteEvent const note : notes) {
             auto const pos = mapper.map(note.x);
             auto const dex =
@@ -268,77 +269,73 @@ namespace ongearm {
             switch (note.kind) {
             default:
             case NoteEvent::Kind::NORM:
-                motions.emplace_back(note.time, pos, MotionEvent::Kind::DOWN, dex);
-                motions.emplace_back(note.time + 5, pos, MotionEvent::Kind::UP, dex);
+                out.emplace_back(note.time, pos, MotionEvent::Kind::DOWN, dex);
+                out.emplace_back(note.time + 5, pos, MotionEvent::Kind::UP, dex);
                 break;
             case NoteEvent::Kind::START:
-                motions.emplace_back(note.time, pos, MotionEvent::Kind::DOWN, dex);
+                out.emplace_back(note.time, pos, MotionEvent::Kind::DOWN, dex);
                 break;
             case NoteEvent::Kind::HOLD:
-                motions.emplace_back(note.time, pos, MotionEvent::Kind::MOVE, dex);
+                out.emplace_back(note.time, pos, MotionEvent::Kind::MOVE, dex);
                 break;
             case NoteEvent::Kind::END:
-                motions.emplace_back(note.time, pos, MotionEvent::Kind::MOVE, dex);
-                motions.emplace_back(note.time + 5, pos, MotionEvent::Kind::UP, dex);
+                out.emplace_back(note.time, pos, MotionEvent::Kind::MOVE, dex);
+                out.emplace_back(note.time + 5, pos, MotionEvent::Kind::UP, dex);
                 break;
             case NoteEvent::Kind::FORTH:
-                motions.emplace_back(note.time - 20, pos, MotionEvent::Kind::MOVE, dex);
-                motions.emplace_back(note.time, pos, MotionEvent::Kind::MOVE, dex);
-                motions.emplace_back(note.time + 5, pos + mapper.offset(0, -mapper.touch_slop), MotionEvent::Kind::MOVE, dex);
-                motions.emplace_back(note.time + 10, pos + mapper.offset(0, -mapper.touch_slop * 2), MotionEvent::Kind::MOVE, dex);
-                motions.emplace_back(note.time + 15, pos + mapper.offset(0, -mapper.touch_slop * 3), MotionEvent::Kind::MOVE, dex);
-                motions.emplace_back(note.time + 20, pos + mapper.offset(0, -mapper.touch_slop * 4), MotionEvent::Kind::MOVE, dex);
-                motions.emplace_back(note.time + 22, pos + mapper.offset(0, -mapper.touch_slop * 4), MotionEvent::Kind::UP, dex);
+                out.emplace_back(note.time - 20, pos, DOWNMOVE, dex);
+                out.emplace_back(note.time, pos, MotionEvent::Kind::MOVE, dex);
+                out.emplace_back(note.time + 5, pos + mapper.offset(0, -mapper.touch_slop), MotionEvent::Kind::MOVE, dex);
+                out.emplace_back(note.time + 10, pos + mapper.offset(0, -mapper.touch_slop * 2), MotionEvent::Kind::MOVE, dex);
+                out.emplace_back(note.time + 15, pos + mapper.offset(0, -mapper.touch_slop * 3), MotionEvent::Kind::MOVE, dex);
+                out.emplace_back(note.time + 20, pos + mapper.offset(0, -mapper.touch_slop * 4), MotionEvent::Kind::MOVE, dex);
+                out.emplace_back(note.time + 22, pos + mapper.offset(0, -mapper.touch_slop * 4), MotionEvent::Kind::UP, dex);
                 break;
             case NoteEvent::Kind::LEFT:
-                motions.emplace_back(note.time - 20, pos, MotionEvent::Kind::MOVE, dex);
-                motions.emplace_back(note.time, pos, MotionEvent::Kind::MOVE, dex);
-                motions.emplace_back(note.time + 5, pos + mapper.offset(-mapper.touch_slop, 0), MotionEvent::Kind::MOVE, dex);
-                motions.emplace_back(note.time + 10, pos + mapper.offset(-mapper.touch_slop * 2, 0), MotionEvent::Kind::MOVE, dex);
-                motions.emplace_back(note.time + 15, pos + mapper.offset(-mapper.touch_slop * 3, 0), MotionEvent::Kind::MOVE, dex);
-                motions.emplace_back(note.time + 20, pos + mapper.offset(-mapper.touch_slop * 4, 0), MotionEvent::Kind::MOVE, dex);
-                motions.emplace_back(note.time + 22, pos + mapper.offset(-mapper.touch_slop * 4, 0), MotionEvent::Kind::UP, dex);
+                out.emplace_back(note.time - 20, pos, DOWNMOVE, dex);
+                out.emplace_back(note.time, pos, MotionEvent::Kind::MOVE, dex);
+                out.emplace_back(note.time + 5, pos + mapper.offset(-mapper.touch_slop, 0), MotionEvent::Kind::MOVE, dex);
+                out.emplace_back(note.time + 10, pos + mapper.offset(-mapper.touch_slop * 2, 0), MotionEvent::Kind::MOVE, dex);
+                out.emplace_back(note.time + 15, pos + mapper.offset(-mapper.touch_slop * 3, 0), MotionEvent::Kind::MOVE, dex);
+                out.emplace_back(note.time + 20, pos + mapper.offset(-mapper.touch_slop * 4, 0), MotionEvent::Kind::MOVE, dex);
+                out.emplace_back(note.time + 22, pos + mapper.offset(-mapper.touch_slop * 4, 0), MotionEvent::Kind::UP, dex);
                 break;
             case NoteEvent::Kind::RIGHT:
-                motions.emplace_back(note.time - 20, pos, MotionEvent::Kind::MOVE, dex);
-                motions.emplace_back(note.time, pos, MotionEvent::Kind::MOVE, dex);
-                motions.emplace_back(note.time + 5, pos + mapper.offset(mapper.touch_slop, 0), MotionEvent::Kind::MOVE, dex);
-                motions.emplace_back(note.time + 10, pos + mapper.offset(mapper.touch_slop * 2, 0), MotionEvent::Kind::MOVE, dex);
-                motions.emplace_back(note.time + 15, pos + mapper.offset(mapper.touch_slop * 3, 0), MotionEvent::Kind::MOVE, dex);
-                motions.emplace_back(note.time + 20, pos + mapper.offset(mapper.touch_slop * 4, 0), MotionEvent::Kind::MOVE, dex);
-                motions.emplace_back(note.time + 22, pos + mapper.offset(mapper.touch_slop * 4, 0), MotionEvent::Kind::UP, dex);
+                out.emplace_back(note.time - 20, pos, DOWNMOVE, dex);
+                out.emplace_back(note.time, pos, MotionEvent::Kind::MOVE, dex);
+                out.emplace_back(note.time + 5, pos + mapper.offset(mapper.touch_slop, 0), MotionEvent::Kind::MOVE, dex);
+                out.emplace_back(note.time + 10, pos + mapper.offset(mapper.touch_slop * 2, 0), MotionEvent::Kind::MOVE, dex);
+                out.emplace_back(note.time + 15, pos + mapper.offset(mapper.touch_slop * 3, 0), MotionEvent::Kind::MOVE, dex);
+                out.emplace_back(note.time + 20, pos + mapper.offset(mapper.touch_slop * 4, 0), MotionEvent::Kind::MOVE, dex);
+                out.emplace_back(note.time + 22, pos + mapper.offset(mapper.touch_slop * 4, 0), MotionEvent::Kind::UP, dex);
                 break;
             }
         }
+        std::ranges::sort(out, {}, +[](ongearm::MotionEvent&m) { return m.time; });
 
         bool down[] = {false, false};
-        for (size_t i = 0; i < motions.size(); ++i) {
-            auto const mo = motions[i];
+        for (size_t i = 0; i < out.size(); ++i) {
+            auto const mo = out[i];
             auto dex = mo.dex;
             if (mo.kind == MotionEvent::Kind::UP) {
                 if (down[dex]) down[dex] = false;
                 else {
                     if (warnings)
                         warnings->push_back(std::format("Time {}: up when not down", mo.time));
-                    if (i == 0 || motions[i - 1].time < mo.time - 1) {
-                        motions.emplace(motions.begin() + i, mo.time - 1, mo.pos, MotionEvent::Kind::DOWN, mo.dex);
-                        i += 1;
-                    }
-                    else {
-                        motions.erase(motions.begin() + i);
-                        i -= 1;
-                    }
+                    out.emplace(out.begin() + i, mo.time, mo.pos, MotionEvent::Kind::DOWN, mo.dex);
+                    i += 1;
                 }
             }
-            else if (mo.kind == MotionEvent::Kind::MOVE) {
+            else if (mo.kind == MotionEvent::Kind::MOVE || mo.kind == DOWNMOVE) {
                 if (down[dex]) {
+                    out[i].kind = MotionEvent::Kind::MOVE;
+
                     // interpolate move motion events
                     auto i_prev = i;
-                    while (i_prev > 0 && motions[i_prev - 1].dex != mo.dex)
+                    while (i_prev > 0 && out[i_prev - 1].dex != dex)
                         i_prev -= 1;
-                    if (i_prev == 0) continue;
-
-                    auto const mo_prev = motions[i_prev - 1];
+                    if (i_prev <= 0) continue;
+                    auto const mo_prev = out[i_prev - 1];
                     auto const t1 = static_cast<float>(mo_prev.time);
                     auto const t2 = static_cast<float>(mo.time);
                     auto const x1 = mapper.remap(mo_prev.pos);
@@ -355,8 +352,8 @@ namespace ongearm {
                             auto t = static_cast<int64_t>(std::lerp(t1, t2, (border - x1) / (x2 - x1)));
                             
                             for (auto x = std::ceil(x_prev * 8.0f) / 8.0f; x <= x_end; x += 0.125f, t += 5) {
-                                if (motions[i].time <= t) break;
-                                motions.emplace(motions.begin() + i, t, mapper.map(x), MotionEvent::Kind::MOVE, mo.dex);
+                                if (out[i].time <= t) break;
+                                out.emplace(out.begin() + i, t, mapper.map(x), MotionEvent::Kind::MOVE, mo.dex);
                                 i += 1;
                             }
                             if (x_end >= x2) break;
@@ -373,8 +370,8 @@ namespace ongearm {
                             auto t = static_cast<int64_t>(std::lerp(t1, t2, (border - x1) / (x2 - x1)));
                             
                             for (auto x = std::floor(x_prev * 8.0f) / 8.0f; x >= x_end; x -= 0.125f, t += 5) {
-                                if (motions[i].time <= t) break;
-                                motions.emplace(motions.begin() + i, t, mapper.map(x), MotionEvent::Kind::MOVE, mo.dex);
+                                if (out[i].time <= t) break;
+                                out.emplace(out.begin() + i, t, mapper.map(x), MotionEvent::Kind::MOVE, mo.dex);
                                 i += 1;
                             }
                             if (x_end <= x2) break;
@@ -384,7 +381,11 @@ namespace ongearm {
                     }
                 }
                 else {
-                    motions[i].kind = MotionEvent::Kind::DOWN;
+                    if (mo.kind == MotionEvent::Kind::MOVE) {
+                        if (warnings)
+                            warnings->push_back(std::format("Time {}: move when not down", mo.time));
+                    }
+                    out[i].kind = MotionEvent::Kind::DOWN;
                     down[dex] = true;
                 }
             }
@@ -392,24 +393,19 @@ namespace ongearm {
                 if (down[dex]) {
                     if (warnings)
                         warnings->push_back(std::format("Time {}: down when down", mo.time));
-                    if (i == 0 || motions[i - 1].time < mo.time - 1) {
-                        motions.emplace(motions.begin() + i, mo.time - 1, mo.pos, MotionEvent::Kind::UP, mo.dex);
-                        i += 1;
-                    }
-                    else {
-                        motions.erase(motions.begin() + i);
-                        i -= 1;
-                    }
+                    out.emplace(out.begin() + i + 1, mo.time, mo.pos, MotionEvent::Kind::UP, mo.dex);
+                    i += 1;
                 }
                 else down[dex] = true;
             }
         }
-        if (!motions.empty()) {
-            auto const m = motions.back();
+
+        if (!out.empty()) {
+            auto const m = out.back();
             if (down[0]) {
                 if (warnings)
                     warnings->push_back("Left hand left down");
-                motions.emplace_back(
+                out.emplace_back(
                     m.time + 5,
                     mapper.map(1.0f),
                     MotionEvent::Kind::UP,
@@ -418,25 +414,12 @@ namespace ongearm {
             if (down[1]) {
                 if (warnings)
                     warnings->push_back("Right hand left down");
-                motions.emplace_back(
+                out.emplace_back(
                     m.time + 5,
                     mapper.map(1.0f),
                     MotionEvent::Kind::UP,
                     1);
             }
         }
-
-        return motions;
-    }
-
-    // for macro systems using relative timestamps, e.g. "sleep 0.5s"
-    inline std::vector<std::vector<MotionEvent>> synchronize(
-        std::span<MotionEvent const>const motions,
-        float off_down, /* time offset for MotionEvent::Kind::DOWN */
-        float off_move, /* time offset for MotionEvent::Kind::MOVE */
-        float off_up, /* time offset for MotionEvent::Kind::UP */
-        size_t num_group, /* number of MotionEvents in a vector */
-        std::vector<std::string>*const warnings = nullptr) noexcept {
-        /* TODO: not yet implemented */ std::abort();
     }
 }
