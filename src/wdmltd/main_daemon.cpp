@@ -15,6 +15,7 @@ extern "C" {
 #include<charconv>
 #include<filesystem>
 #include<fstream>
+#include<iostream>
 #include<print>
 #include<string_view>
 #include<system_error>
@@ -47,6 +48,38 @@ static int load_song(
     return 0;
 }
 
+static int select_kbd(std::filesystem::path&kbd) {
+    std::error_code ec;
+    std::vector<std::filesystem::path> kbds;
+    for (std::filesystem::directory_iterator dev("/dev/input/by-id", ec), end;;) {
+        if (ec) return std::println(
+            stderr, "error: {}", ec.message()), ec.value();
+        if (dev == end) break;
+        auto&p = dev->path();
+        if (std::string_view{p.c_str()}.ends_with("-event-kbd"))
+            kbds.push_back(p);
+        dev.increment(ec);
+    }
+    if (kbds.empty())
+        return std::println(stderr, "keyboard not found"), -1;
+    else if (kbds.size() == 1) kbd = kbds.front();
+    else {
+        for (size_t n = 0; auto&p : kbds) {
+            std::println("{}. {}", n, p.c_str());
+            n += 1;
+        }
+        std::print("select:");
+        size_t n;
+        std::cin >> n;
+        if (n >= kbds.size()) {
+            std::println(stderr, "invalid selection");
+            return -2;
+        }
+        kbd = kbds[n];
+    }
+    return 0;
+}
+
 namespace cli {
     int daemon(int const argc, char**const argv) noexcept {
         Config conf(argc, argv);
@@ -67,29 +100,13 @@ namespace cli {
 
         std::filesystem::path kbd;
         if (conf.kbd.empty()) {
-            std::filesystem::directory_iterator
-                dev("/dev/input/by-id", ec), end;
-            if (ec) return std::println(
-                stderr, "input dev error: {}", ec.message()), ec.value();
-            for (;;) {
-                if (dev == end)
-                    return std::println(stderr, "keyboard not found"), -1;
-                auto&p = dev->path();
-                auto const p_str = p.string();
-                if (p_str.ends_with("-event-kbd")) {
-                    kbd = p;
-                    std::println("watching {}", p_str);
-                    break;
-                }
-                dev.increment(ec);
-                if (ec) return std::println(
-                    stderr, "input dev error: {}", ec.message()), ec.value();
-            }
+            if (auto const err = select_kbd(kbd); err != 0)
+                return err;
         }
         else {
             kbd = conf.kbd;
-            std::println("watching {}", conf.kbd);
         }
+        std::println("watching {}", kbd.c_str());
 
         std::vector<PhantomInput> song;
         if (!conf.song.empty()) {

@@ -30,10 +30,5 @@ int main(int const argc, char**const argv) {
         std::println(stderr, "bad command: {}", cmd);
         return -2;
     }
-<<<<<<< HEAD
-    else std::println("wdmltd v0.1");
-}
-=======
     else std::println("wdmltd v0.2");
 }
->>>>>>> master

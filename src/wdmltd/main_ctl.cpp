@@ -42,23 +42,20 @@ namespace cli {
         if (song_name.contains('*')) {
             auto const head = std::string_view{song_name}.substr(0, song_name.find('*'));
             auto const tail = std::string_view{song_name}.substr(song_name.rfind('*') + 1);
-            std::vector<std::string> candi;
+            std::vector<std::filesystem::path> candi;
             std::error_code ec;
-            std::filesystem::directory_iterator dir(conf.song_dir, ec);
-            if (ec) {
-                std::println(stderr, "error: {}", ec.message());
-                return ec.value();
-            }
-            decltype(dir) const end;
-            while (dir != end) {
-                auto const s = dir->path().stem().string();
-                if (s.starts_with(head) && s.ends_with(tail))
-                    candi.push_back(dir->path().filename().string());
-                dir.increment(ec);
+            for (std::filesystem::directory_iterator dir(conf.song_dir, ec), end;;) {
                 if (ec) {
                     std::println(stderr, "error: {}", ec.message());
                     return ec.value();
                 }
+                if (dir == end) break;
+                auto&p = dir->path();
+                auto const stem = p.stem();
+                std::string_view const s{stem.c_str()};
+                if (s.starts_with(head) && s.ends_with(tail))
+                    candi.push_back(p);
+                dir.increment(ec);
             }
 
             if (candi.empty()) {
@@ -66,11 +63,11 @@ namespace cli {
                 return -2;
             }
             else if (candi.size() == 1) {
-                song_name = std::move(candi.front());
+                song_name = candi.front();
             }
             else {
-                for (size_t n = 0; auto&s : candi) {
-                    std::println("{}. {}", n, s);
+                for (size_t n = 0; auto&p : candi) {
+                    std::println("{}. {}", n, p.c_str());
                     n += 1;
                 }
                 std::print("select:");
@@ -80,7 +77,7 @@ namespace cli {
                     std::println(stderr, "invalid selection");
                     return -2;
                 }
-                song_name = std::move(candi[n]);
+                song_name = candi[n];
             }
         }
         std::println("new song: {}", song_name);
@@ -108,7 +105,7 @@ namespace cli {
     }
 
     int config(int const argc, char**const argv) noexcept {
-        std::string_view const conf_name = argc > 0 ? argv[0] : "config.toml";
+        std::string_view conf_name = argc > 0 ? argv[0] : "config.toml";
 
         std::error_code ec;
         auto const p = std::filesystem::absolute(conf_name, ec);
@@ -116,13 +113,13 @@ namespace cli {
             std::println(stderr, "error : {}", ec.message());
             return ec.value();
         }
-        auto const p_str = p.string();
-        auto const size = p_str.size();
+        conf_name = p.c_str();
+        auto const size = conf_name.size();
         if (size >= 0xFF) {
-            std::println(stderr, "config path too long (>255 char): {}", p_str);
+            std::println(stderr, "config path too long (>255 char): {}", conf_name);
             return -1;
         }
-        std::println("new config file: {}", p_str);
+        std::println("new config file: {}", conf_name);
 
         auto const conf =
             argc > 0 ? Config(argc - 1, argv + 1) : Config(0, nullptr);
@@ -136,7 +133,7 @@ namespace cli {
         }
         s.put(Recept::Command::CONFIG)
             .put(static_cast<uint8_t>(size))
-            .write(p_str.data(), size)
+            .write(conf_name.data(), size)
             .flush();
         if (!s.good()) {
             std::println(stderr, "can not send data");

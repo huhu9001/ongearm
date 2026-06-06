@@ -65,7 +65,7 @@ int change_song(
     std::ifstream csv(path);
     if (!csv.good()) {
         if (warnings)
-            warnings->push_back(std::format("cannot read {}", path.string()));
+            warnings->push_back(std::format("cannot read {}", path.c_str()));
         return -1;
     }
     std::vector<ongearm::NoteEvent> notes;
