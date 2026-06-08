@@ -36,12 +36,13 @@ add_custom_command(
 add_custom_target(wdmltd_config ALL DEPENDS ${CMAKE_BINARY_DIR}/config.toml)
 
 if(CMAKE_BUILD_TYPE STREQUAL Debug)
+    include_directories(src/test)
     enable_testing()
     add_executable(t_parser
         src/test/parser.cpp)
-    add_executable(t_recept
-        src/test/recept.cpp)
-    target_link_libraries(t_recept uring)
+    add_executable(t_dpad
+        src/wdmltd/test.dpad.cpp
+        src/wdmltd/ctrl.cpp)
     add_test(NAME parser COMMAND ${CMAKE_BINARY_DIR}/t_parser)
-    add_test(NAME recept COMMAND ${CMAKE_BINARY_DIR}/t_recept)
+    add_test(NAME dpad COMMAND ${CMAKE_BINARY_DIR}/t_dpad)
 endif()

@@ -131,7 +131,7 @@ def make_svg(fn:str, crs:int)->list:
     n_lanes = N_LANES[crs]
 
     csvl = []
-    with open(fn, newline='') as csvf:
+    with open(fn, newline = '') as csvf:
         for line in csv.reader(csvf):
             t = parse_time(line[0])
             if not t:

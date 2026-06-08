@@ -15,7 +15,6 @@ else:
         elif crs_name == '_6m': crs = 1
         elif crs_name == '_4m': crs = 2
         elif crs_name == '_2m': crs = 3
-        elif crs_name == '_2s': crs = 3
         elif crs_name == '_2p': crs = 4
         else: continue
         sn = stem[:-3]

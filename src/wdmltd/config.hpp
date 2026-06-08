@@ -7,22 +7,33 @@
 #include<string>
 #include<string_view>
 
+struct Args {
+    std::string err;
+
+    std::string_view cmd;
+    std::string_view config;
+    std::string_view port;
+    std::string_view kbd;
+    std::string_view ip;
+    std::string_view screen;
+
+    std::vector<std::string_view> inputs;
+
+    Args(int const, char const*const*, int skip) noexcept;
+};
+
 struct Config {
+    std::string err;
+    bool msize_ok;
+
     int daemon_port;
     std::string phantom_ip;
     std::string phantom_port;
-    std::string kbd;
-    std::string song;
     std::string song_dir;
     std::string ptsvr_jar;
-    std::vector<Ctrls::Ctrl> ctrls;
+    std::vector<CtrlPanel::Ctrl> ctrls;
     MltdSize msize;
-    int16_t key_exit;
-    int16_t key_play;
 
-    bool good;
-    bool msize_ok;
-
-    Config(int, char**) noexcept;
-    int load(std::string_view name) noexcept;
+    Config(Args const&args) noexcept;
+    std::string load(std::string_view name) noexcept;
 };
