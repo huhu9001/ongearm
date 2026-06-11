@@ -6,10 +6,7 @@ extern "C" {
 #include<linux/input.h>
 }
 
-#include<cstdio>
 #include<filesystem>
-#include<print>
-#include<string_view>
 #include<system_error>
 
 Args::Args(int const argc, char const*const*const argv, int const skip) noexcept:

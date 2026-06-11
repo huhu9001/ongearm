@@ -5,7 +5,6 @@ extern "C" {
 }
 
 #include<cstdint>
-#include<cstring>
 #include<string>
 #include<vector>
 
@@ -33,5 +32,4 @@ struct Job {
         uint8_t kind;
     } cmd;
     input_event ev;
-    std::vector<uint8_t> mdata;
 };

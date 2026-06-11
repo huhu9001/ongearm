@@ -1,14 +1,11 @@
 #pragma once
 
 #include"jobs.hpp"
-#include"phantom.hpp"
 
 #include<boost/asio.hpp>
 
 #include<cstddef>
 #include<cstdint>
-#include<algorithm>
-#include<deque>
 #include<span>
 #include<vector>
 
@@ -49,6 +46,8 @@ struct CtrlPanel {
     size_t assign(std::span<CtrlPanel::Ctrl const>) noexcept;
     void input(uint16_t key, int32_t status) noexcept;
     void poll(Job&) noexcept;
+    std::span<uint8_t const> data() const noexcept { return output; }
+    void clear() noexcept { output.clear(); }
 
     struct KeyIndex {
         size_t idx;
@@ -85,7 +84,7 @@ struct CtrlPanel {
         };
 
         boost::asio::steady_timer timer;
-        std::deque<std::vector<uint8_t>>&output;
+        std::vector<uint8_t>&output;
         size_t step;
         std::chrono::milliseconds const t;
         int32_t const x_from, y_from;
@@ -94,9 +93,10 @@ struct CtrlPanel {
         uint8_t slot;
     };
 private:
+    std::vector<uint8_t> output;
+
     boost::asio::io_context&ctx;
     std::vector<KeyIndex> indices;
-    std::deque<std::vector<uint8_t>> output;
     bool pause, song;
     bool ctrl, alt, shift;
     

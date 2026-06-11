@@ -6,7 +6,7 @@
 #include<cstdint>
 #include<atomic>
 #include<filesystem>
-#include<string_view>
+#include<string>
 #include<vector>
 
 struct PhantomInput {
@@ -29,16 +29,21 @@ struct MltdSize {
     int32_t slop;
 };
 
+struct PhantomSong {
+    std::vector<PhantomInput> data;
+    std::vector<std::string> warnings;
+    std::vector<ongearm::NoteEvent> buf_n;
+    std::vector<ongearm::MotionEvent> buf_m;
+    int change(std::filesystem::path const&, MltdSize const&) noexcept;
+    void clear() noexcept {
+        data.clear(), warnings.clear(), buf_n.clear(), buf_m.clear();
+    }
+};
+
 struct PlayMacroContext {
     std::atomic_bool abrt, done;
     boost::asio::ip::tcp::iostream*ptsvr;
     std::vector<PhantomInput>const*song;
 };
-
-int change_song(
-    std::vector<PhantomInput>&song,
-    std::filesystem::path const&name,
-    MltdSize const&msize,
-    std::vector<std::string>*warnings = nullptr) noexcept;
 
 int play_phantom_macro(PlayMacroContext*const c) noexcept;

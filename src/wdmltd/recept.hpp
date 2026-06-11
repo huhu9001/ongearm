@@ -11,24 +11,17 @@ extern "C" {
 
 #include<cstdint>
 #include<cstddef>
-#include<condition_variable>
 #include<deque>
 #include<filesystem>
-#include<future>
-#include<mutex>
-#include<new>
 #include<string_view>
-#include<system_error>
-#include<thread>
 #include<utility>
-#include<variant>
 #include<vector>
 
 struct Recept {
     Recept(
         boost::asio::io_context&ctx,
         int port,
-        std::filesystem::path kbd_name) noexcept:
+        std::filesystem::path const&kbd_name) noexcept:
         ctx(ctx),
         ac(ctx),
         sc(ctx),
@@ -36,13 +29,25 @@ struct Recept {
         boost::system::error_code ec;
         boost::asio::ip::tcp::endpoint endpoint(boost::asio::ip::tcp::v4(), port);
         ac.open(endpoint.protocol(), ec);
-        if (ec) ec_ac = ec;
+        if (ec) {
+            ec_ac = ec;
+            return;
+        }
         ac.bind(endpoint, ec);
-        if (ec) ec_ac = ec;
+        if (ec) {
+            ec_ac = ec;
+            return;
+        }
         ac.listen(boost::asio::socket_base::max_listen_connections, ec);
-        if (ec) ec_ac = ec;
+        if (ec) {
+            ec_ac = ec;
+            return;
+        }
         kbd.open(kbd_name, boost::asio::file_base::flags::read_only, ec);
-        if (ec) ec_kbd = ec;
+        if (ec) {
+            ec_ac = ec;
+            return;
+        }
 
         ac.async_accept(sc, OnAccept{*this});
         boost::asio::async_read(

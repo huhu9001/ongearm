@@ -7,7 +7,7 @@ import os
 import re
 import sys
 
-SVG_HEAD = re.sub('\\n\\s+', '', '''
+SVG_HEAD = re.sub('\\n\\s*', '', '''
 <svg width="700" height="{0}" xmlns="http://www.w3.org/2000/svg">
     <defs>
         <path id="d" d="

@@ -1,6 +1,6 @@
-#include"recept.hpp"
+#include"jobs.hpp"
 
-#include<filesystem>
+#include<cstdio>
 #include<string_view>
 #include<print>
 
@@ -30,5 +30,5 @@ int main(int const argc, char**const argv) {
         std::println(stderr, "bad command: {}", cmd);
         return -2;
     }
-    else std::println("wdmltd v0.2");
+    else std::println("wdmltd v0.2.1");
 }

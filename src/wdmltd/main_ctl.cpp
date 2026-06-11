@@ -3,6 +3,7 @@
 
 #include<boost/asio.hpp>
 
+#include<cstdio>
 #include<format>
 #include<iostream>
 #include<print>

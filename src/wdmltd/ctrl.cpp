@@ -1,7 +1,10 @@
 #include"ctrl.hpp"
 
+#include"phantom.hpp"
+
 #include<cstring>
 #include<cmath>
+#include<algorithm>
 #include<utility>
 
 static uint16_t get_sort_key(CtrlPanel::KeyIndex const&ki) noexcept { return ki.key; }
@@ -17,11 +20,17 @@ static P dpad_dst(CtrlPanel::DPadCtrl const&d) noexcept {
     };
 }
 
+static uint8_t*append(std::vector<uint8_t>&o, size_t n) {
+    auto const size = o.size();
+    o.resize(size + n);
+    return o.data() + size;
+}
+
 static void do_dpad(
         CtrlPanel::DPadCtrl&d,
         int32_t const x0,
         int32_t const y0,
-        std::deque<std::vector<uint8_t>>&out) noexcept {
+        std::vector<uint8_t>&out) noexcept {
     constexpr auto STEP = 20;
     auto const[x_dst, y_dst] = dpad_dst(d);
     auto const diff_x = std::abs(x_dst - x0);
@@ -29,8 +38,7 @@ static void do_dpad(
     auto const n =
         static_cast<size_t>(std::max((diff_x + STEP - 1) / STEP, (diff_y + STEP - 1) / STEP));
     if (n > 0) {
-        auto&o = out.emplace_back();
-        o.resize(n * 10);
+        auto const o = append(out, n * 10);
         for (size_t i = 0; i < n; ++i) {
             o[i * 10] = PhantomInput::CMD_TOUCH_MOVE;
             o[i * 10 + 1] = d.slot;
@@ -52,8 +60,8 @@ static void do_dpad(
                 auto const y_try = y0 - mul * STEP;
                 y = y_try <= y_dst ? y_dst : y_try;
             }
-            std::memcpy(o.data() + i * 10 + 2, &x, 4);
-            std::memcpy(o.data() + i * 10 + 6, &y, 4);
+            std::memcpy(o + i * 10 + 2, &x, 4);
+            std::memcpy(o + i * 10 + 6, &y, 4);
         }
     }
 }
@@ -177,8 +185,7 @@ size_t CtrlPanel::assign(std::span<CtrlPanel::Ctrl const>const ctrls) noexcept {
     }
     std::ranges::sort(indices, {}, get_sort_key);
 
-    auto&o = output.emplace_back();
-    o.push_back(PhantomInput::CMD_TOUCH_CANCEL);
+    output.push_back(PhantomInput::CMD_TOUCH_CANCEL);
 
     return n;
 }
@@ -206,12 +213,11 @@ void CtrlPanel::input(uint16_t key, int32_t status) noexcept {
                     if (auto const slot = get_slot(); slot != SLOT_NUM) {
                         tap.slot = slot;
                         busy[slot] = true;
-                        auto&o = output.emplace_back();
-                        o.resize(10);
+                        auto const o = append(output, 10);
                         o[0] = PhantomInput::CMD_TOUCH_DOWN;
                         o[1] = slot;
-                        std::memcpy(o.data() + 2, &tap.x, 4);
-                        std::memcpy(o.data() + 6, &tap.y, 4);
+                        std::memcpy(o + 2, &tap.x, 4);
+                        std::memcpy(o + 6, &tap.y, 4);
                     }
                 }
             } break;
@@ -231,16 +237,15 @@ void CtrlPanel::input(uint16_t key, int32_t status) noexcept {
                         d.right = c->type == KeyIndex::DPAD_RIGHT;
 
                         auto const[x_dst, y_dst] = dpad_dst(d);
-                        auto&o = output.emplace_back();
-                        o.resize(20);
+                        auto const o = append(output, 20);
                         o[0] = PhantomInput::CMD_TOUCH_DOWN;
                         o[1] = slot;
-                        std::memcpy(o.data() + 2, &x_dst, 4);
-                        std::memcpy(o.data() + 6, &y_dst, 4);
+                        std::memcpy(o + 2, &x_dst, 4);
+                        std::memcpy(o + 6, &y_dst, 4);
                         o[10] = PhantomInput::CMD_TOUCH_MOVE;
                         o[11] = slot;
-                        std::memcpy(o.data() + 12, &x_dst, 4);
-                        std::memcpy(o.data() + 16, &y_dst, 4);
+                        std::memcpy(o + 12, &x_dst, 4);
+                        std::memcpy(o + 16, &y_dst, 4);
                     }
                 }
                 else {
@@ -259,17 +264,16 @@ void CtrlPanel::input(uint16_t key, int32_t status) noexcept {
                         sw.slot = slot;
                         busy[slot] = true;
 
-                        auto&o = sw.output.emplace_back();
                         if (sw.t.count() > 0) {
-                            o.resize(20);
+                            auto const o = append(output, 10);
                             o[0] = PhantomInput::CMD_TOUCH_DOWN;
                             o[1] = sw.slot;
-                            std::memcpy(o.data() + 2, &sw.x_from, 4);
-                            std::memcpy(o.data() + 6, &sw.y_from, 4);
+                            std::memcpy(o + 2, &sw.x_from, 4);
+                            std::memcpy(o + 6, &sw.y_from, 4);
                             o[10] = PhantomInput::CMD_TOUCH_MOVE;
                             o[11] = sw.slot;
-                            std::memcpy(o.data() + 12, &sw.x_from, 4);
-                            std::memcpy(o.data() + 16, &sw.y_from, 4);
+                            std::memcpy(o + 12, &sw.x_from, 4);
+                            std::memcpy(o + 16, &sw.y_from, 4);
 
                             auto const n = sw.t.count() / SwipeCtrl::INTERVAL.count();
                             auto const t = sw.t.count() % SwipeCtrl::INTERVAL.count();
@@ -284,19 +288,19 @@ void CtrlPanel::input(uint16_t key, int32_t status) noexcept {
                             sw.timer.async_wait(SwipeCtrl::Handler{sw});
                         }
                         else {
-                            o.resize(30);
+                            auto const o = append(output, 30);
                             o[0] = PhantomInput::CMD_TOUCH_DOWN;
                             o[1] = sw.slot;
-                            std::memcpy(o.data() + 2, &sw.x_from, 4);
-                            std::memcpy(o.data() + 6, &sw.y_from, 4);
+                            std::memcpy(o + 2, &sw.x_from, 4);
+                            std::memcpy(o + 6, &sw.y_from, 4);
                             o[10] = PhantomInput::CMD_TOUCH_MOVE;
                             o[11] = sw.slot;
-                            std::memcpy(o.data() + 12, &sw.x_from, 4);
-                            std::memcpy(o.data() + 16, &sw.y_from, 4);
+                            std::memcpy(o + 12, &sw.x_from, 4);
+                            std::memcpy(o + 16, &sw.y_from, 4);
                             o[20] = PhantomInput::CMD_TOUCH_MOVE;
                             o[21] = sw.slot;
-                            std::memcpy(o.data() + 22, &sw.x_to, 4);
-                            std::memcpy(o.data() + 26, &sw.y_to, 4);
+                            std::memcpy(o + 22, &sw.x_to, 4);
+                            std::memcpy(o + 26, &sw.y_to, 4);
                         }
                     }
                 }
@@ -316,14 +320,13 @@ void CtrlPanel::input(uint16_t key, int32_t status) noexcept {
 
         for (auto c = std::ranges::lower_bound(
             indices, key, {}, get_sort_key); c != indices.end() && c->key == key; ++c)
-        if (c->ctrl == ctrl && c->alt == alt && c->shift == shift) {
+        /* key up regardless of modifiers */ {
             switch (c->type) {
             case KeyIndex::TAP: {
                 auto&tap = taps[c->idx];
                 if (tap.slot < SLOT_NUM) {
-                    auto&o = output.emplace_back();
-                    o.push_back(PhantomInput::CMD_TOUCH_UP);
-                    o.push_back(tap.slot);
+                    output.push_back(PhantomInput::CMD_TOUCH_UP);
+                    output.push_back(tap.slot);
                     busy[tap.slot] = false;
                     tap.slot = SLOT_NUM;
                 }
@@ -343,10 +346,8 @@ void CtrlPanel::input(uint16_t key, int32_t status) noexcept {
                         do_dpad(d, x0, y0, output);
                     }
                     else {
-                        auto&o = output.emplace_back();
-                        o.resize(2);
-                        o[0] = PhantomInput::CMD_TOUCH_UP;
-                        o[1] = d.slot;
+                        output.push_back(PhantomInput::CMD_TOUCH_UP);
+                        output.push_back(d.slot);
                         busy[d.slot] = false;
                         d.slot = SLOT_NUM;
                     }
@@ -356,9 +357,8 @@ void CtrlPanel::input(uint16_t key, int32_t status) noexcept {
                 auto&sw = swipes[c->idx];
                 if (sw.slot < SLOT_NUM) {
                     sw.timer.cancel();
-                    auto&o = output.emplace_back();
-                    o.push_back(PhantomInput::CMD_TOUCH_UP);
-                    o.push_back(sw.slot);
+                    output.push_back(PhantomInput::CMD_TOUCH_UP);
+                    output.push_back(sw.slot);
                     busy[sw.slot] = false;
                     sw.slot = SLOT_NUM;
                 }
@@ -383,8 +383,6 @@ void CtrlPanel::poll(Job&j) noexcept {
 
     if (!output.empty()) {
         j.kind = Job::MOTION;
-        j.mdata = std::move(output.front());
-        output.pop_front();
         return;
     }
 
@@ -393,14 +391,13 @@ void CtrlPanel::poll(Job&j) noexcept {
 
 void CtrlPanel::SwipeCtrl::Handler::operator()(boost::system::error_code const&e) noexcept  {
     if (e) return;
-    auto&o = sw.output.emplace_back();
-    o.resize(10);
+    auto const o = append(sw.output, 10);
     o[0] = PhantomInput::CMD_TOUCH_MOVE;
     o[1] = sw.slot;
     const auto x = static_cast<int32_t>(sw.x_to - sw.step * sw.dx);
     const auto y = static_cast<int32_t>(sw.y_to - sw.step * sw.dy);
-    std::memcpy(o.data() + 2, &x, 4);
-    std::memcpy(o.data() + 6, &y, 4);
+    std::memcpy(o + 2, &x, 4);
+    std::memcpy(o + 6, &y, 4);
     if (sw.step > 0) {
         sw.step -= 1;
         sw.timer.expires_after(INTERVAL);

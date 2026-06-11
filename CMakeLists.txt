@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.28)
-project(ongearm VERSION 0.2)
+project(ongearm VERSION 0.2.1)
 set(CMAKE_CXX_STANDARD 23)
 if(MSVC)
     add_compile_options(/W4)

@@ -10,9 +10,8 @@ extern "C" {
 #include<linux/input.h>
 }
 
-#include<cstdlib>
 #include<cstdio>
-#include<charconv>
+#include<cstdlib>
 #include<filesystem>
 #include<fstream>
 #include<iostream>
@@ -25,7 +24,7 @@ extern "C" {
 #include<vector>
 
 static int load_song(
-    std::vector<PhantomInput>&song,
+    PhantomSong&song,
     Config const&conf,
     std::string_view const name) {
     std::error_code ec;
@@ -34,12 +33,11 @@ static int load_song(
         return -2;
     }
     if (std::filesystem::exists(name, ec)) {
-        std::vector<std::string> warnings;
-        change_song(song, name, conf.msize, &warnings);
-        for (auto&w : warnings) {
+        song.change(name, conf.msize);
+        for (auto&w : song.warnings) {
             std::println(stderr, "warning: {}", w);
         }
-        std::println("loaded {} with {:+} events", name, song.size());
+        std::println("loaded {} with {:+} events", name, song.data.size());
     }
     else if (ec) {
         std::println(stderr, "fserr: {}", ec.message());
@@ -121,7 +119,7 @@ namespace cli {
             return err.value();
         }
 
-        std::vector<PhantomInput> song;
+        PhantomSong song;
 
         boost::asio::io_context ctx;
         CtrlPanel ctrls{ctx};
@@ -129,7 +127,7 @@ namespace cli {
 
         Recept rc(ctx, conf.daemon_port, kbd);
         std::thread th_play;
-        PlayMacroContext playctx{false, false, &ptsvr, &song};
+        PlayMacroContext playctx{false, false, &ptsvr, &song.data};
         auto paused = false;
 
         for (Job e;;) {
@@ -239,13 +237,14 @@ namespace cli {
 
             else if (e.kind == Job::MOTION) {
                 if (!paused && !th_play.joinable()) {
-                    auto&o = e.mdata;
+                    auto const o = ctrls.data();
                     ptsvr.write(reinterpret_cast<char const*>(o.data()), o.size());
-                        ptsvr.flush();
-                        if (!ptsvr)
-                            return std::println(stderr, "Phantom server closed unexpectedly: {}",
-                                ptsvr.error().message()), -1;
+                    ptsvr.flush();
+                    if (!ptsvr)
+                        return std::println(stderr, "Phantom server closed unexpectedly: {}",
+                            ptsvr.error().message()), -1;
                 }
+                ctrls.clear();
             }
         }
     }

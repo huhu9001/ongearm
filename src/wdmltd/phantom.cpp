@@ -56,20 +56,15 @@ static void make_phanton_macro(
     });
 }
 
-int change_song(
-    std::vector<PhantomInput>&song,
-    std::filesystem::path const&path,
-    MltdSize const&msize,
-    std::vector<std::string>*const warnings) noexcept {
-    song.clear();
+int PhantomSong::change(std::filesystem::path const&path, MltdSize const&msize) noexcept {
+    clear();
+
     std::ifstream csv(path);
     if (!csv.good()) {
-        if (warnings)
-            warnings->push_back(std::format("cannot read {}", path.c_str()));
+        warnings.push_back(std::format("cannot read {}", path.c_str()));
         return -1;
     }
-    std::vector<ongearm::NoteEvent> notes;
-    ongearm::parse_note(notes, csv, warnings);
+    ongearm::parse_note(buf_n, csv, &warnings);
 
     ongearm::ScrnMapper mapper;
     switch (get_course(path)) {
@@ -101,10 +96,9 @@ int change_song(
         break;
     }
     mapper.touch_slop = msize.slop;
-    std::vector<ongearm::MotionEvent> motions;
-    ongearm::note_to_mo(motions, notes, mapper, warnings);
+    ongearm::note_to_mo(buf_m, buf_n, mapper, &warnings);
 
-    make_phanton_macro(song, motions);
+    make_phanton_macro(data, buf_m);
     return 0;
 }
 

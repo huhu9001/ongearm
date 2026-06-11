@@ -2,7 +2,7 @@
 
 #include<boost/asio.hpp>
 
-#include<string>
+#include<future>
 #include<string_view>
 #include<thread>
 
@@ -16,6 +16,7 @@ struct PtsvrConnection {
     PtsvrConnection(PtsvrConnection&&) noexcept = default;
     ~PtsvrConnection();
 private:
-    std::string pid;
+    boost::asio::ip::tcp::iostream&socket;
     std::thread th;
+    std::future<void> done;
 };
