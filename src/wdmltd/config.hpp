@@ -25,6 +25,7 @@ struct Args {
 
 struct Config {
     std::string err;
+    std::vector<std::string_view> w;
     bool msize_ok;
 
     int daemon_port;

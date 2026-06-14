@@ -23,6 +23,30 @@ extern "C" {
 #include<utility>
 #include<vector>
 
+static int pause(PtsvrConnection&pht) noexcept {
+    if (pht.close()) {
+        std::println("paused");
+        return 0;
+    }
+    else {
+        auto const&s = pht.socket;
+        std::println(stderr, "{}", s.error().message());
+        return s.error().value();
+    }
+}
+
+static int resume(PtsvrConnection&pht) noexcept {
+    if (pht.retry()) {
+        std::println("resumed");
+        return 0;
+    }
+    else {
+        auto const&s = pht.socket;
+        std::println(stderr, "{}", s.error().message());
+        return s.error().value();
+    }
+}
+
 static int load_song(
     PhantomSong&song,
     Config const&conf,
@@ -97,6 +121,8 @@ namespace cli {
             std::println(stderr, "{}", conf.err);
             return -2;
         }
+        for (auto const w : conf.w)
+            std::println(stderr, "warning: {}", w);
         std::error_code ec;
 
         std::filesystem::path kbd;
@@ -107,11 +133,10 @@ namespace cli {
         else kbd = args.kbd;
         std::println("watching {}", kbd.c_str());
 
-        boost::asio::ip::tcp::iostream ptsvr;
-        PtsvrConnection const cnct(
-            ptsvr, conf.phantom_ip, conf.phantom_port, conf.ptsvr_jar);
-        if (!ptsvr.good()) {
-            auto&err = ptsvr.error();
+        PtsvrConnection pht(
+            conf.phantom_ip, conf.phantom_port, conf.ptsvr_jar);
+        if (!pht.socket.good()) {
+            auto&err = pht.socket.error();
             std::println(
                 stderr,
                 "unable to connect to the PhantonServer: {}",
@@ -127,8 +152,7 @@ namespace cli {
 
         Recept rc(ctx, conf.daemon_port, kbd);
         std::thread th_play;
-        PlayMacroContext playctx{false, false, &ptsvr, &song.data};
-        auto paused = false;
+        PlayMacroContext playctx{false, false, &pht.socket, &song.data};
 
         for (Job e;;) {
             e.kind = Job::NONE;
@@ -145,9 +169,9 @@ namespace cli {
             
             if (th_play.joinable() && playctx.done.load(std::memory_order::relaxed)) {
                 th_play.join();
-                if (!ptsvr)
+                if (!pht.socket)
                     return std::println(stderr, "Phantom server closed unexpectedly: {}",
-                        ptsvr.error().message()), -1;
+                        pht.socket.error().message()), -1;
                 playctx.done.store(false, std::memory_order::relaxed);
             }
 
@@ -172,12 +196,12 @@ namespace cli {
                     return 0;
                 }
                 else if (cmd.kind == Job::Cmd::PAUSE) {
-                    paused = true;
-                    std::println("paused");
+                    if (auto const ret = pause(pht); ret != 0)
+                        return ret;
                 }
                 else if (cmd.kind == Job::Cmd::RESUME) {
-                    paused = false;
-                    std::println("resumed");
+                    if (auto const ret = resume(pht); ret != 0)
+                        return ret;
                 }
                 else if (cmd.kind == Job::Cmd::SONG) {
                     if (th_play.joinable()) {
@@ -193,14 +217,21 @@ namespace cli {
                     }
                 }
                 else if (cmd.kind == Job::Cmd::CONFIG) {
-                    std::string p(cmd.data.size(), '\0');
-                    std::memcpy(p.data(), cmd.data.data(), cmd.data.size());
-                    if (auto const err = conf.load(p); !err.empty()) {
-                        std::println("load config failed: {}", err);
+                    if (th_play.joinable()) {
+                        std::println(stderr, "song playing, new config not loaded.");
                     }
                     else {
-                        song.clear();
-                        load_ctrls(ctrls, conf.ctrls);
+                        std::string p(cmd.data.size(), '\0');
+                        std::memcpy(p.data(), cmd.data.data(), cmd.data.size());
+                        if (auto const err = conf.load(p); !err.empty()) {
+                            std::println("load config failed: {}", err);
+                        }
+                        else {
+                            for (auto const w : conf.w)
+                                std::println(stderr, "warning: {}", w);
+                            song.clear();
+                            load_ctrls(ctrls, conf.ctrls);
+                        }
                     }
                 }
             }
@@ -214,21 +245,27 @@ namespace cli {
                 if (th_play.joinable()) {
                     playctx.abrt.store(true, std::memory_order::relaxed);
                     th_play.join();
-                    if (!ptsvr)
+                    if (!pht.socket)
                         return std::println(stderr, "Phantom server closed unexpectedly: {}",
-                            ptsvr.error().message()), -1;
+                            pht.socket.error().message()), -1;
                     playctx.abrt.store(false, std::memory_order::relaxed);
                     playctx.done.store(false, std::memory_order::relaxed);
                     std::println("song stopped");
                 }
                 else {
-                    paused ^= true;
-                    std::println("{}", paused ? "paused" : "resumed");
+                    if (pht.socket.eof()) {
+                        if (auto const ret = resume(pht); ret != 0)
+                            return ret;
+                    }
+                    else {
+                        if (auto const ret = pause(pht); ret != 0)
+                            return ret;
+                    }
                 }
             }
             
             else if (e.kind == Job::SONG) {
-                if (!paused && !th_play.joinable()) {
+                if (!pht.socket.eof() && !th_play.joinable()) {
                     th_play = std::thread(play_phantom_macro, &playctx);
                     std::println("starting playing the song");
                     std::println("press exit key to stop");
@@ -236,13 +273,13 @@ namespace cli {
             }
 
             else if (e.kind == Job::MOTION) {
-                if (!paused && !th_play.joinable()) {
+                if (!pht.socket.eof() && !th_play.joinable()) {
                     auto const o = ctrls.data();
-                    ptsvr.write(reinterpret_cast<char const*>(o.data()), o.size());
-                    ptsvr.flush();
-                    if (!ptsvr)
+                    pht.socket.write(reinterpret_cast<char const*>(o.data()), o.size());
+                    pht.socket.flush();
+                    if (!pht.socket)
                         return std::println(stderr, "Phantom server closed unexpectedly: {}",
-                            ptsvr.error().message()), -1;
+                            pht.socket.error().message()), -1;
                 }
                 ctrls.clear();
             }

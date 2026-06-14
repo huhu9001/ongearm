@@ -214,6 +214,7 @@ std::string Config::load(std::string_view const name) noexcept {
     }
 
     ctrls.clear();
+    w.clear();
     if (auto const ctrls_config = config["ctrl"]; ctrls_config.is_array_of_tables()) {
         for (auto&c_node : *ctrls_config.as_array()) {
             auto&c = *c_node.as_table();
@@ -223,7 +224,11 @@ std::string Config::load(std::string_view const name) noexcept {
             auto const shift = c["shift"].value_or(false);
             if (type == "pause") {
                 auto const key = c["key"].value<uint16_t>();
-                if (key) ctrls.push_back(CtrlPanel::Ctrl{
+                if (!key) {
+                    w.push_back("type = \"pause\" control not loaded, missing key");
+                    continue;
+                }
+                ctrls.push_back(CtrlPanel::Ctrl{
                     .key = *key,
                     .type = CtrlPanel::Ctrl::PAUSE,
                     .ctrl = ctrl,
@@ -233,7 +238,11 @@ std::string Config::load(std::string_view const name) noexcept {
             }
             else if (type == "song") {
                 auto const key = c["key"].value<uint16_t>();
-                if (key) ctrls.push_back(CtrlPanel::Ctrl{
+                if (!key) {
+                    w.push_back("type = \"song\" control not loaded, missing key");
+                    continue;
+                }
+                ctrls.push_back(CtrlPanel::Ctrl{
                     .key = *key,
                     .type = CtrlPanel::Ctrl::SONG,
                     .ctrl = ctrl,
@@ -243,72 +252,110 @@ std::string Config::load(std::string_view const name) noexcept {
             }
             else if (type == "dpad") {
                 auto const x = c["x"].value<int32_t>();
+                if (!x) {
+                    w.push_back("type = \"dpad\" control not loaded, missing x");
+                    continue;
+                }
                 auto const y = c["y"].value<int32_t>();
+                if (!y) {
+                    w.push_back("type = \"dpad\" control not loaded, missing y");
+                    continue;
+                }
                 auto const r = c["r"].value<int32_t>();
+                if (!r) {
+                    w.push_back("type = \"dpad\" control not loaded, missing r");
+                    continue;
+                }
                 auto const up = c["up"].value_or<uint16_t>(KEY_RESERVED);
                 auto const down = c["down"].value_or<uint16_t>(KEY_RESERVED);
                 auto const left = c["left"].value_or<uint16_t>(KEY_RESERVED);
                 auto const right = c["right"].value_or<uint16_t>(KEY_RESERVED);
-                if (x && y && r) {
-                    ctrls.push_back(CtrlPanel::Ctrl{
-                        .dpad = {
-                            .x = *x,
-                            .y = *y,
-                            .r = *r,
-                            .up = up,
-                            .down = down,
-                            .left = left,
-                            .right = right,
-                        },
-                        .type = CtrlPanel::Ctrl::DPAD,
-                        .ctrl = ctrl,
-                        .alt = alt,
-                        .shift = shift,
-                    });
-                }
+                ctrls.push_back(CtrlPanel::Ctrl{
+                    .dpad = {
+                        .x = *x,
+                        .y = *y,
+                        .r = *r,
+                        .up = up,
+                        .down = down,
+                        .left = left,
+                        .right = right,
+                    },
+                    .type = CtrlPanel::Ctrl::DPAD,
+                    .ctrl = ctrl,
+                    .alt = alt,
+                    .shift = shift,
+                });
             }
             else if (type == "swipe") {
                 auto const key = c["key"].value<uint16_t>();
-                auto const x1 = c["x1"].value<int32_t>();
-                auto const y1 = c["y1"].value<int32_t>();
-                auto const x2 = c["x2"].value<int32_t>();
-                auto const y2 = c["y2"].value<int32_t>();
-                if (key && x1 && y1 && x2 && y2) {
-                    auto const t =
-                        c["time"].value_or<std::chrono::milliseconds::rep>(100);
-                    ctrls.push_back(CtrlPanel::Ctrl{
-                        .swipe = {
-                            .t = std::chrono::milliseconds{t},
-                            .x_from = *x1,
-                            .y_from = *y1,
-                            .x_to = *x2,
-                            .y_to = *y2,
-                            .key = *key,
-                        },
-                        .type = CtrlPanel::Ctrl::SWIPE,
-                        .ctrl = ctrl,
-                        .alt = alt,
-                        .shift = shift,
-                    });
+                if (!key) {
+                    w.push_back("type = \"swipe\" control not loaded, missing key");
+                    continue;
                 }
+                auto const x1 = c["x1"].value<int32_t>();
+                if (!x1) {
+                    w.push_back("type = \"swipe\" control not loaded, missing x1");
+                    continue;
+                }
+                auto const y1 = c["y1"].value<int32_t>();
+                if (!y1) {
+                    w.push_back("type = \"swipe\" control not loaded, missing y1");
+                    continue;
+                }
+                auto const x2 = c["x2"].value<int32_t>();
+                if (!x2) {
+                    w.push_back("type = \"swipe\" control not loaded, missing x2");
+                    continue;
+                }
+                auto const y2 = c["y2"].value<int32_t>();
+                if (!y2) {
+                    w.push_back("type = \"swipe\" control not loaded, missing y2");
+                    continue;
+                }
+                auto const t =
+                    c["time"].value_or<std::chrono::milliseconds::rep>(100);
+                ctrls.push_back(CtrlPanel::Ctrl{
+                    .swipe = {
+                        .t = std::chrono::milliseconds{t},
+                        .x_from = *x1,
+                        .y_from = *y1,
+                        .x_to = *x2,
+                        .y_to = *y2,
+                        .key = *key,
+                    },
+                    .type = CtrlPanel::Ctrl::SWIPE,
+                    .ctrl = ctrl,
+                    .alt = alt,
+                    .shift = shift,
+                });
             }
             else {
                 auto const key = c["key"].value<uint16_t>();
-                auto const x = c["x"].value<int32_t>();
-                auto const y = c["y"].value<int32_t>();
-                if (key && x && y) {
-                    ctrls.push_back(CtrlPanel::Ctrl{
-                        .tap = {
-                            .x = *x,
-                            .y = *y,
-                            .key = *key,
-                        },
-                        .type = CtrlPanel::Ctrl::TAP,
-                        .ctrl = ctrl,
-                        .alt = alt,
-                        .shift = shift,
-                    });
+                if (!key) {
+                    w.push_back("type = \"tap\" control not loaded, missing key");
+                    continue;
                 }
+                auto const x = c["x"].value<int32_t>();
+                if (!x) {
+                    w.push_back("type = \"tap\" control not loaded, missing x");
+                    continue;
+                }
+                auto const y = c["y"].value<int32_t>();
+                if (!y) {
+                    w.push_back("type = \"tap\" control not loaded, missing y");
+                    continue;
+                }
+                ctrls.push_back(CtrlPanel::Ctrl{
+                    .tap = {
+                        .x = *x,
+                        .y = *y,
+                        .key = *key,
+                    },
+                    .type = CtrlPanel::Ctrl::TAP,
+                    .ctrl = ctrl,
+                    .alt = alt,
+                    .shift = shift,
+                });
             }
         }
     }

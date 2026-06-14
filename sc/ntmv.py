@@ -31,7 +31,6 @@ else:
     m = re.fullmatch('([-+]?\\d+)(?:\\[(.*?)-(.*?)\\])?', sys.argv[2])
     if not m:
         print('bad param 2')
-        print('example: -80[01:24.000-01:30.000]')
         exit(-2)
     if m.group(2) != None:
         if len(m.group(2)) > 0:
