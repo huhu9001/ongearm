@@ -248,7 +248,6 @@ def make_svg(fn:str, crs:int)->list:
 def svg_from_file(fn:str, outdir:str|None, force:bool):
     dirstem, ext = os.path.splitext(fn)
     if ext != '.csv':
-        print('skipped {}'.format(fn))
         return
     if outdir:
         _, stem = os.path.split(dirstem)
@@ -256,7 +255,6 @@ def svg_from_file(fn:str, outdir:str|None, force:bool):
     else:
         op = dirstem + '.svg'
     if not force and os.path.exists(op) and os.path.getmtime(op) >= os.path.getmtime(fn):
-        print('skipped {}'.format(fn))
         return
     outs = make_svg(fn, get_crs(fn))
     with open(op, 'w') as svgf:
@@ -281,5 +279,8 @@ else:
     for fn in args:
         if os.path.isdir(fn):
             for ffn in os.listdir(fn):
-                svg_from_file(os.path.join(fn, ffn), outdir, force)
+                try: svg_from_file(os.path.join(fn, ffn), outdir, force)
+                except Exception as e:
+                    print('{} failed'.format(ffn))
+                    raise e
         else: svg_from_file(fn, outdir, force)
