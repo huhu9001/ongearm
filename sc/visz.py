@@ -7,6 +7,12 @@ import os
 import re
 import sys
 
+class CsvOut:
+    skip = 0
+    def __init__(self, path:str|None = None):
+        self.path = path
+        self.ow = [os.path.join(path, f) for f in os.listdir(path) if f.endswith('.svg')] if path else []
+
 SVG_HEAD = re.sub('\\n\\s*', '', '''
 <svg width="700" height="{0}" xmlns="http://www.w3.org/2000/svg">
     <defs>
@@ -245,22 +251,33 @@ def make_svg(fn:str, crs:int)->list:
 
     return outs
 
-def svg_from_file(fn:str, outdir:str|None, force:bool):
-    dirstem, ext = os.path.splitext(fn)
-    if ext != '.csv':
-        return
-    if outdir:
-        _, stem = os.path.split(dirstem)
-        op = os.path.join(outdir, stem) + '.svg'
-    else:
-        op = dirstem + '.svg'
-    if not force and os.path.exists(op) and os.path.getmtime(op) >= os.path.getmtime(fn):
-        return
-    outs = make_svg(fn, get_crs(fn))
-    with open(op, 'w') as svgf:
-        for out in outs:
-            svgf.write(out)
-    print('saved to {}'.format(op))
+def svg_from_file(fn:str, out:CsvOut, force:bool):
+    try:
+        dirstem, ext = os.path.splitext(fn)
+        if ext != '.csv':
+            return
+        
+        if out.path:
+            _, stem = os.path.split(dirstem)
+            op = os.path.join(out.path, stem) + '.svg'
+        else:
+            op = dirstem + '.svg'
+        
+        if op in out.ow:
+            out.ow.remove(op)
+        
+        if not force and os.path.exists(op) and os.path.getmtime(op) >= os.path.getmtime(fn):
+            out.skip += 1
+            return
+        
+        lines = make_svg(fn, get_crs(fn))
+        with open(op, 'w') as svgf:
+            for line in lines:
+                svgf.write(line)
+        print('saved to {}'.format(op))
+    except Exception as e:
+        print('{} failed'.format(fn))
+        raise e
 
 if len(sys.argv) < 2:
     print('mltdsong visualizer v0.1')
@@ -272,15 +289,19 @@ else:
         force = True
 
     if len(args) > 0 and os.path.isdir(args[0]):
-        outdir = args[0]
+        out = CsvOut(args[0])
         args = args[1:]
-    else: outdir = None
+    else:
+        out = CsvOut()
 
     for fn in args:
         if os.path.isdir(fn):
             for ffn in os.listdir(fn):
-                try: svg_from_file(os.path.join(fn, ffn), outdir, force)
-                except Exception as e:
-                    print('{} failed'.format(ffn))
-                    raise e
-        else: svg_from_file(fn, outdir, force)
+                svg_from_file(os.path.join(fn, ffn), out, force)
+        else: svg_from_file(fn, out, force)
+        
+    if out.skip > 0:
+        print('skipped {} files'.format(out.skip))
+    if len(out.ow) > 0:
+        print('orphaned:')
+        for ow in out.ow: print(ow)
