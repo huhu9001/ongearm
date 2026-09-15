@@ -1,6 +1,7 @@
 #include"ptsvr.hpp"
 
 #include<cstdio>
+#include<cstdlib>
 #include<chrono>
 #include<format>
 #include<filesystem>
@@ -11,7 +12,7 @@
 #include<utility>
 
 static constexpr auto CMD_START =
-    "echo CLASSPATH={} app_process /data/local/tmp com.phantom.server.PhantomServer -- --port {}|waydroid shell sh";
+    "echo CLASSPATH={} app_process /data/local/tmp com.phantom.server.PhantomServer -- --port {}|sudo waydroid shell sh";
 
 PtsvrConnection::PtsvrConnection(
     std::string_view const ip,
@@ -72,7 +73,7 @@ PtsvrConnection::~PtsvrConnection() {
         return;
     }
     std::println(stderr, "warning: PhantomServer process is lost");
-    th.detach();
+    std::terminate();
 }
 
 bool PtsvrConnection::close() noexcept {
