@@ -19,16 +19,7 @@ Args::Args(int const argc, char const*const*const argv, int const skip) noexcept
                 err = std::format("missing --config argument");
                 return;
             }
-            std::error_code ec;
-            if (std::filesystem::exists(argv[i], ec))
-                config = argv[i];
-            else {
-                if (ec)
-                    err = std::format("fserr: {}", ec.message());
-                else
-                    err = std::format("config file {} does not exist", argv[i]);
-                return;
-            }
+            config = argv[i];
         }
         else if (arg == "--port") {
             i += 1;
@@ -146,37 +137,52 @@ Config::Config(Args const&args) noexcept:
     phantom_port{"27183"} {
     if (!err.empty()) return;
 
-    std::filesystem::path pwd;
-    {
-        std::error_code ec;
-        auto const abs_cmd = std::filesystem::absolute(std::filesystem::path{args.cmd}, ec);
-        if (ec) {
-            err = std::format("fserr: {}", ec.message());
-            return;
-        }
-        if (abs_cmd.has_parent_path())
-            pwd = abs_cmd.parent_path();
+    if (std::error_code ec; song_dir = std::filesystem::current_path(ec), ec) {
+        err = std::format("fserr: {}", ec.message());
+        return;
     }
-    song_dir = pwd;
 
-    if (!args.config.empty()) {
-        err = load(args.config);
-        if (!err.empty()) return;
-    }
-    else {
-        auto const config = pwd / "config.toml";
+    auto const config = std::filesystem::path{
+        args.config.empty() ? "config.toml" : args.config};
+    {
         std::error_code ec;
         if (std::filesystem::exists(config, ec)) {
             err = load(config.c_str());
             if (!err.empty()) return;
+            goto LB_CONF_SUCCESS;
         }
-        else {
+        if (ec) {
+            err = std::format("fserr: {}", ec.message());
+            return;
+        }
+
+        if (auto const cmd = std::filesystem::path{args.cmd}; cmd.has_parent_path()) {
+            auto const conf_cmd = cmd.parent_path() / config;
+            if (std::filesystem::exists(conf_cmd, ec)) {
+                err = load(conf_cmd.c_str());
+                if (!err.empty()) return;
+                goto LB_CONF_SUCCESS;
+            }
+            if (ec) {
+                err = std::format("fserr: {}", ec.message());
+                return;
+            }
+        }
+        
+        if (auto const home = std::getenv("HOME"); home != nullptr) {
+            auto const conf_def = std::filesystem::path{home} / ".config/wdmltd" / config;
+            if (std::filesystem::exists(conf_def, ec)) {
+                err = load(conf_def.c_str());
+                if (!err.empty()) return;
+                goto LB_CONF_SUCCESS;
+            }
             if (ec) {
                 err = std::format("fserr: {}", ec.message());
                 return;
             }
         }
     }
+LB_CONF_SUCCESS:
 
     if (!args.screen.empty()) {
         if (!msize_from_arg(msize, args.screen)) {

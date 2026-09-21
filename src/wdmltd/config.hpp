@@ -4,6 +4,7 @@
 #include"phantom.hpp"
 
 #include<cstdint>
+#include<filesystem>
 #include<string>
 #include<string_view>
 #include<vector>
@@ -31,7 +32,7 @@ struct Config {
     int daemon_port;
     std::string phantom_ip;
     std::string phantom_port;
-    std::string song_dir;
+    std::filesystem::path song_dir;
     std::string ptsvr_jar;
     std::vector<CtrlPanel::Ctrl> ctrls;
     MltdSize msize;

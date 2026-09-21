@@ -67,8 +67,7 @@ namespace cli {
             std::filesystem::path song_name{args.inputs.front()};
             auto const song_filename = song_name.filename();
             auto const song_parent = song_name.has_parent_path() ?
-                song_name.parent_path()
-            : std::filesystem::path{conf.song_dir};
+                song_name.parent_path() : conf.song_dir;
             if (std::string_view nm{song_filename.c_str()}; nm.contains('*')) {
                 auto const head = nm.substr(0, nm.find('*'));
                 auto const tail = nm.substr(nm.rfind('*') + 1);
