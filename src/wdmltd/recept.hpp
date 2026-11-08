@@ -21,11 +21,10 @@ struct Recept {
     Recept(
         boost::asio::io_context&ctx,
         int port,
-        std::filesystem::path const&kbd_name) noexcept:
+        std::span<std::filesystem::path const>const kbds) noexcept:
         ctx(ctx),
         ac(ctx),
-        sc(ctx),
-        kbd(ctx) {
+        sc(ctx) {
         boost::system::error_code ec;
         boost::asio::ip::tcp::endpoint endpoint(boost::asio::ip::tcp::v4(), port);
         ac.open(endpoint.protocol(), ec);
@@ -43,15 +42,9 @@ struct Recept {
             ec_ac = ec;
             return;
         }
-        kbd.open(kbd_name, boost::asio::file_base::flags::read_only, ec);
-        if (ec) {
-            ec_ac = ec;
-            return;
-        }
-
         ac.async_accept(sc, OnAccept{*this});
-        boost::asio::async_read(
-            kbd, boost::asio::mutable_buffer(&ev, sizeof(input_event)), OnKbd{*this});
+
+        rekbd(kbds);
     }
     Recept(Recept const&) = delete;
     Recept(Recept&&) = delete;
@@ -62,9 +55,10 @@ struct Recept {
             j.err = ec_ac.message();
             return;
         }
-        if (ec_kbd) {
-            j.kind = Job::ERR;
-            j.err = ec_kbd.message();
+        if (!ec_kbd.empty()) {
+            j.kind = Job::MSG;
+            j.err = ec_kbd.back().message();
+            ec_kbd.pop_back();
             return;
         }
 
@@ -84,16 +78,32 @@ struct Recept {
         j.kind = Job::NONE;
     }
 
+    void rekbd(std::span<std::filesystem::path const>const kbds) noexcept {
+        kbd.clear();
+        ev.resize(kbds.size());
+        for (auto const&kbdname : kbds) {
+            auto&k = kbd.emplace_back(ctx);
+            boost::system::error_code ec;
+            k.open(kbdname, boost::asio::file_base::flags::read_only, ec);
+            if (ec) {
+                ec_ac = ec;
+                return;
+            }
+            boost::asio::async_read(k, boost::asio::mutable_buffer(
+                &ev.back(), sizeof(input_event)), OnKbd{*this, kbd.size() - 1});
+        }
+    }
+
 private:
     boost::asio::io_context&ctx;
     boost::asio::ip::tcp::acceptor ac;
     boost::asio::ip::tcp::socket sc;
-    boost::asio::stream_file kbd;
+    std::vector<boost::asio::stream_file> kbd;
 
-    input_event ev;
+    std::vector<input_event> ev;
     uint8_t cmd_head[2];
     std::vector<uint8_t> buf_cmd;
-    boost::system::error_code ec_kbd;
+    std::vector<boost::system::error_code> ec_kbd;
     boost::system::error_code ec_ac;
 
     std::deque<input_event> data_input;
@@ -111,7 +121,7 @@ private:
 
     struct OnCmd {
         Recept&r;
-        void operator()(boost::system::error_code const&ec, size_t n) noexcept {
+        void operator()(boost::system::error_code const&ec, size_t) noexcept {
             if (ec) {
                 boost::system::error_code e;
                 r.sc.close(e);
@@ -132,7 +142,7 @@ private:
 
     struct OnCmdData {
         Recept&r;
-        void operator()(boost::system::error_code const&ec, size_t n) noexcept {
+        void operator()(boost::system::error_code const&ec, size_t) noexcept {
             if (ec) {
                 boost::system::error_code e;
                 r.sc.close(e);
@@ -148,12 +158,16 @@ private:
 
     struct OnKbd {
         Recept&r;
-        void operator()(boost::system::error_code const&ec, size_t n) noexcept {
-            if (ec) r.ec_kbd = ec;
+        size_t n;
+        void operator()(boost::system::error_code const&ec, size_t) noexcept {
+            if (ec) {
+                r.ec_kbd.push_back(ec);
+            }
             else {
-                if (r.ev.type == EV_KEY) r.data_input.push_back(r.ev);
+                auto&ev = r.ev[n];
+                if (ev.type == EV_KEY) r.data_input.push_back(ev);
                 boost::asio::async_read(
-                    r.kbd, boost::asio::mutable_buffer(&r.ev, sizeof(input_event)), *this);
+                    r.kbd[n], boost::asio::mutable_buffer(&ev, sizeof(input_event)), *this);
             }
         }
     };

@@ -22,6 +22,8 @@ int main(int const argc, char**const argv) {
             return cli::cmds(argc, argv, Job::Cmd::PAUSE);
         else if (cmd == "resume")
             return cli::cmds(argc, argv, Job::Cmd::RESUME);
+        else if (cmd == "kbd")
+            return cli::cmds(argc, argv, Job::Cmd::KBD);
         else if (cmd == "song")
             return cli::song(argc, argv);
         else if (cmd == "config")
@@ -30,5 +32,5 @@ int main(int const argc, char**const argv) {
         std::println(stderr, "bad command: {}", cmd);
         return -2;
     }
-    else std::println("wdmltd v0.2.1");
+    else std::println("wdmltd v0.2.2");
 }

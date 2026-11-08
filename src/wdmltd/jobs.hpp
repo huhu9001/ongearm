@@ -12,6 +12,7 @@ struct Job {
     enum Kind {
         NONE,
         ERR,
+        MSG,
         CMD,
         KEY,
         PAUSE,
@@ -27,6 +28,7 @@ struct Job {
             RESUME,
             CONFIG,
             SONG,
+            KBD,
         };
         std::vector<uint8_t> data;
         uint8_t kind;

@@ -81,9 +81,8 @@ static void load_ctrls(CtrlPanel&ctrls, std::span<CtrlPanel::Ctrl const>const cs
         std::println(stderr, "warning: {} controls not loaded", cs.size() - n);
 }
 
-static int select_kbd(std::filesystem::path&kbd) {
+static int select_kbd(std::vector<std::filesystem::path>&kbds) {
     std::error_code ec;
-    std::vector<std::filesystem::path> kbds;
     for (std::filesystem::directory_iterator dev("/dev/input/by-id", ec), end;;) {
         if (ec) return std::println(
             stderr, "error: {}", ec.message()), ec.value();
@@ -95,21 +94,6 @@ static int select_kbd(std::filesystem::path&kbd) {
     }
     if (kbds.empty())
         return std::println(stderr, "keyboard not found"), -1;
-    else if (kbds.size() == 1) kbd = kbds.front();
-    else {
-        for (size_t n = 0; auto&p : kbds) {
-            std::println("{}. {}", n, p.c_str());
-            n += 1;
-        }
-        std::print("select:");
-        size_t n;
-        std::cin >> n;
-        if (n >= kbds.size()) {
-            std::println(stderr, "invalid selection");
-            return -2;
-        }
-        kbd = kbds[n];
-    }
     return 0;
 }
 
@@ -125,13 +109,18 @@ namespace cli {
             std::println(stderr, "warning: {}", w);
         std::error_code ec;
 
-        std::filesystem::path kbd;
+        std::vector<std::filesystem::path> kbds;
         if (args.kbd.empty()) {
-            if (auto const err = select_kbd(kbd); err != 0)
+            if (auto const err = select_kbd(kbds); err != 0)
                 return err;
         }
-        else kbd = args.kbd;
-        std::println("watching {}", kbd.c_str());
+        else kbds = {args.kbd};
+        switch (kbds.size()) {
+        case 0: break;
+        case 1: std::println("watching {}", kbds.front().c_str()); break;
+        default: std::println("watching {} keyboards", kbds.size()); break;
+        }
+        
 
         PtsvrConnection pht(
             conf.phantom_ip, conf.phantom_port, conf.ptsvr_jar);
@@ -150,7 +139,7 @@ namespace cli {
         CtrlPanel ctrls{ctx};
         load_ctrls(ctrls, conf.ctrls);
 
-        Recept rc(ctx, conf.daemon_port, kbd);
+        Recept rc(ctx, conf.daemon_port, kbds);
         std::thread th_play;
         PlayMacroContext playctx{false, false, &pht.socket, &song.data};
 
@@ -183,6 +172,10 @@ namespace cli {
 
                 std::println(stderr, "error: {}", e.err);
                 return -1;
+            }
+
+            else if (e.kind == Job::MSG) {
+                std::println("info: {}", e.err);
             }
 
             else if (e.kind == Job::CMD) {
@@ -232,6 +225,12 @@ namespace cli {
                             song.clear();
                             load_ctrls(ctrls, conf.ctrls);
                         }
+                    }
+                }
+                else if (cmd.kind == Job::Cmd::KBD) {
+                    std::vector<std::filesystem::path> kbds;
+                    if (auto const err = select_kbd(kbds); err == 0) {
+                        rc.rekbd(kbds);
                     }
                 }
             }
